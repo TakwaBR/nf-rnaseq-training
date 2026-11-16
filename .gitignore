@@ -1,0 +1,7 @@
+work/
+.nextflow*
+*.bam
+*.bai
+*.fastq.gz
+*.fq.gz
+*.tar.gz
