@@ -5,3 +5,4 @@ work/
 *.fastq.gz
 *.fq.gz
 *.tar.gz
+results/

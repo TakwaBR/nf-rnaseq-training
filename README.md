@@ -2,7 +2,7 @@
 
 My work following the [Nextflow for Science: RNAseq](https://training.nextflow.io/latest/nf4_science/rnaseq/) training (`nf4-science/rnaseq`).
 
-The method follows the bulk RNA-seq exercise from the [Babraham Institute](https://www.bioinformatics.babraham.ac.uk/training/RNASeq_Course/Analysing%20RNA-Seq%20data%20Exercise.pdf). Before writing any Nextflow code, each step is first tested manually, in containers, on a small test dataset.
+The method follows the bulk RNA-seq exercise from the [Babraham Institute](https://www.bioinformatics.babraham.ac.uk/training/RNASeq_Course/Analysing%20RNA-Seq%20data%20Exercise.pdf). Before writing any Nextflow code, each step is first tested manually, in containers, on a small test dataset (Part 1). The commands are then wrapped into a Nextflow workflow (Parts 2 and 3).
 
 ## Pipeline steps
 
@@ -19,7 +19,9 @@ Provided by the training (small region of human chromosome 20, hg19/b37):
 - `genome.fa`: reference genome
 - `single-end.csv`, `paired-end.csv`: sample sheets
 
-Samples processed: `ENCSR000COQ1`, `ENCSR000COQ2`, `ENCSR000COR1`.
+Samples processed manually (Part 1): `ENCSR000COQ1`, `ENCSR000COQ2`, `ENCSR000COR1`. The Part 2 workflow runs on `ENCSR000COQ1`.
+
+The data is not included in this repository. To rerun the workflow, get the `nf4-science/rnaseq/data` folder from [nextflow-io/training](https://github.com/nextflow-io/training) and place it inside `workflow/` (next to `rnaseq.nf`). The genome index archive `data/genome_index.tar.gz` must also be built first, as shown in Part 1 (`hisat2-build` + `tar`).
 
 ## Part 1: Manual processing
 
@@ -110,13 +112,39 @@ mv all_samples_QC* /data/multiqc
 exit
 ```
 
+Outputs are in `results_manual/`.
+
+## Part 2: Single-sample workflow
+
+The manual commands are wrapped into a Nextflow workflow (FASTQC → TRIM_GALORE → HISAT2_ALIGN), with one module per tool and one container per process.
+
+- `workflow/rnaseq.nf`: main workflow
+- `workflow/modules/`: `fastqc.nf`, `trim_galore.nf`, `hisat2_align.nf`
+- `workflow/nextflow.config`: configuration (Docker enabled, `test` profile with default input paths)
+
+Inputs are set with two parameters, given default values by the `test` profile (paths relative to `workflow/`):
+
+- `--input`: FASTQ file (`data/reads/ENCSR000COQ1_1.fastq.gz`)
+- `--hisat2_index_zip`: HISAT2 genome index archive (`data/genome_index.tar.gz`, built in Part 1)
+
+**Run** (from `workflow/`, with Docker running):
+
+```bash
+nextflow run rnaseq.nf -profile test
+```
+
+Outputs are published to `results/{fastqc,trimming,align}` as symbolic links to the `work/` directory. Light outputs from my run were copied as real files into `results_part2/`.
+
 ## Repository content
 
-- `results_manual/aligned/`: HISAT2 alignment logs
-- `results_manual/trimmed/`: trimming reports and post-trimming FastQC reports
-- `results_manual/multiqc/`: aggregated MultiQC report (`all_samples_QC.html`) and its data
+- `results_manual/`: Part 1 outputs
+  - `aligned/`: HISAT2 alignment logs
+  - `trimmed/`: trimming reports and post-trimming FastQC reports
+  - `multiqc/`: aggregated MultiQC report (`all_samples_QC.html`) and its data
+- `workflow/`: Nextflow workflow and modules (Part 2)
+- `results_part2/`: Part 2 outputs (FastQC, trimming reports, HISAT2 log)
 
-Large files (FASTQ, BAM, genome index) are excluded via `.gitignore`.
+Large files (FASTQ, BAM, genome index) and Nextflow working files are excluded via `.gitignore`.
 
 ## Tools and containers
 
@@ -126,10 +154,10 @@ Large files (FASTQ, BAM, genome index) are excluded via `.gitignore`.
 | HISAT2, samtools | `community.wave.seqera.io/library/hisat2_samtools:5e49f68a37dc010e` |
 | MultiQC | `community.wave.seqera.io/library/pip_multiqc:a3c26f6199d64b7c` |
 
-Environment: WSL2 (Ubuntu), Docker Desktop, VS Code.
+Environment: WSL2 (Ubuntu), Java, Nextflow, Docker Desktop, VS Code.
 
 ## Progress
 
 - [x] Part 1: manual processing of 3 samples
-- [ ] Part 2: single-sample Nextflow workflow
+- [x] Part 2: single-sample Nextflow workflow
 - [ ] Part 3: multi-sample Nextflow workflow
