@@ -19,9 +19,9 @@ Provided by the training (small region of human chromosome 20, hg19/b37):
 - `genome.fa`: reference genome
 - `single-end.csv`, `paired-end.csv`: sample sheets
 
-Samples processed manually (Part 1): `ENCSR000COQ1`, `ENCSR000COQ2`, `ENCSR000COR1`. The Part 2 workflow runs on `ENCSR000COQ1`.
+Samples processed manually (Part 1): `ENCSR000COQ1`, `ENCSR000COQ2`, `ENCSR000COR1`. The Part 2 workflow runs on `ENCSR000COQ1` only. Part 3 runs on the 6 samples listed in the samplesheets (`ENCSR000COQ1`, `COQ2`, `COR1`, `COR2`, `CPO1`, `CPO2`).
 
-The data is not included in this repository. To rerun the workflow, get the `nf4-science/rnaseq/data` folder from [nextflow-io/training](https://github.com/nextflow-io/training) and place it inside `workflow/` (next to `rnaseq.nf`). The genome index archive `data/genome_index.tar.gz` must also be built first, as shown in Part 1 (`hisat2-build` + `tar`).
+The data is not included in this repository. To rerun the workflow, get the `nf4-science/rnaseq/data` folder from [nextflow-io/training](https://github.com/nextflow-io/training) and place it inside `workflow/` (next to `rnaseq.nf`). The genome index archive `data/genome_index.tar.gz` must also be built first, as shown in Part 1 (`hisat2-build` + `tar`). The samplesheets `single-end.csv` and `paired-end.csv` contain absolute file paths, which must be edited to match your machine.
 
 ## Part 1: Manual processing
 
@@ -122,10 +122,7 @@ The manual commands are wrapped into a Nextflow workflow (FASTQC → TRIM_GALORE
 - `workflow/modules/`: `fastqc.nf`, `trim_galore.nf`, `hisat2_align.nf`
 - `workflow/nextflow.config`: configuration (Docker enabled, `test` profile with default input paths)
 
-Inputs are set with two parameters, given default values by the `test` profile (paths relative to `workflow/`):
-
-- `--input`: FASTQ file (`data/reads/ENCSR000COQ1_1.fastq.gz`)
-- `--hisat2_index_zip`: HISAT2 genome index archive (`data/genome_index.tar.gz`, built in Part 1)
+In Part 2, the workflow takes a single FASTQ file (`--input`) and the HISAT2 genome index archive built in Part 1 (`--hisat2_index_zip`). Both have default values in the `test` profile of `nextflow.config`. In Part 3, `--input` becomes a CSV samplesheet (see below).
 
 **Run** (from `workflow/`, with Docker running):
 
@@ -133,7 +130,29 @@ Inputs are set with two parameters, given default values by the `test` profile (
 nextflow run rnaseq.nf -profile test
 ```
 
-Outputs are published to `results/{fastqc,trimming,align}` as symbolic links to the `work/` directory. Light outputs from my run were copied as real files into `results_part2/`.
+Outputs are published to `results/{fastqc,trimming,align}` as symbolic links to the `work/` directory. Light outputs from my Part 2 run were copied as real files into `results_part2/`.
+
+## Part 3: Multi-sample and paired-end workflows
+
+The workflow is extended in three steps. `workflow/` contains the final version.
+
+**1. Multiple samples.** `--input` is now a CSV samplesheet, parsed with `splitCsv(header: true)`. All steps run in parallel on the 6 samples.
+
+**2. Aggregated QC report.** A `MULTIQC` process (`modules/multiqc.nf`) collects all QC outputs (FastQC, trimming reports, HISAT2 logs) with `.mix()` and `.collect()`, and produces a single report named with the `report_id` parameter.
+
+**3. Paired-end data.** A separate workflow, `rnaseq_pe.nf`, handles paired-end reads. It uses paired-end versions of the modules (`fastqc_pe.nf`, `trim_galore_pe.nf`, `hisat2_align_pe.nf`), where read pairs are passed as tuples, Trim Galore runs with `--paired` and HISAT2 with `-1`/`-2`. A `test_pe` profile points to `paired-end.csv`.
+
+**Run** (from `workflow/`, with Docker running):
+
+```bash
+# single-end, 6 samples
+nextflow run rnaseq.nf -profile test
+
+# paired-end, 6 samples
+nextflow run rnaseq_pe.nf -profile test_pe
+```
+
+Add `-resume` to reuse steps that already succeeded. The aggregated reports are published to `results/multiqc/` (`all_single-end.html` and `all_paired-end.html`) and copied to `results_part3/`.
 
 ## Repository content
 
@@ -141,8 +160,9 @@ Outputs are published to `results/{fastqc,trimming,align}` as symbolic links to 
   - `aligned/`: HISAT2 alignment logs
   - `trimmed/`: trimming reports and post-trimming FastQC reports
   - `multiqc/`: aggregated MultiQC report (`all_samples_QC.html`) and its data
-- `workflow/`: Nextflow workflow and modules (Part 2)
+- `workflow/`: Nextflow workflows (`rnaseq.nf`, `rnaseq_pe.nf`), modules and configuration (Parts 2 and 3)
 - `results_part2/`: Part 2 outputs (FastQC, trimming reports, HISAT2 log)
+- `results_part3/`: Part 3 MultiQC reports (single-end and paired-end)
 
 Large files (FASTQ, BAM, genome index) and Nextflow working files are excluded via `.gitignore`.
 
@@ -160,4 +180,4 @@ Environment: WSL2 (Ubuntu), Java, Nextflow, Docker Desktop, VS Code.
 
 - [x] Part 1: manual processing of 3 samples
 - [x] Part 2: single-sample Nextflow workflow
-- [ ] Part 3: multi-sample Nextflow workflow
+- [x] Part 3: multi-sample and paired-end Nextflow workflows
